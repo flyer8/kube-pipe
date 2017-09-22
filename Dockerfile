@@ -1,16 +1,13 @@
 FROM alpine:3.4
 
-MAINTAINER Wang Shaobo <fireshooter@163.com>
+MAINTAINER flyer8 "flyer8@yandex.ru"
 
-ENV LANG en_US.UTF-8
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+ENV NGINX_VERSION 1.11.3
+ENV DEVEL_KIT_MODULE_VERSION 0.3.0
+ENV LUA_MODULE_VERSION 0.10.6
 
-ENV NGINX_VERSION 1.10.2
-ENV NGX_DEVEL_KIT_VERSION 0.3.0
-ENV LUA_NGINX_MODULE_VERSION 0.10.7
-
-# Install LUAJIT
-RUN apk add --no-cache luajit
+ENV LUAJIT_LIB=/usr/lib
+ENV LUAJIT_INC=/usr/include/luajit-2.0
 
 RUN GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
 	&& CONFIG="\
@@ -44,20 +41,20 @@ RUN GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
 		--with-http_auth_request_module \
 		--with-http_xslt_module=dynamic \
 		--with-http_image_filter_module=dynamic \
-		--with-http_geoip_module=dynamic \
+		--with-http_geoip_module \
 		--with-http_perl_module=dynamic \
 		--with-threads \
 		--with-stream \
 		--with-stream_ssl_module \
+		--with-stream_geoip_module=dynamic \
 		--with-http_slice_module \
 		--with-mail \
 		--with-mail_ssl_module \
 		--with-file-aio \
 		--with-http_v2_module \
 		--with-ipv6 \
-		--with-ld-opt="-Wl,-rpath,/usr/lib" \
-	  --add-module=/tmp/ngx_devel_kit-${NGX_DEVEL_KIT_VERSION} \
-	  --add-module=/tmp/lua-nginx-module-${LUA_NGINX_MODULE_VERSION} \
+		--add-module=/usr/src/ngx_devel_kit-$DEVEL_KIT_MODULE_VERSION \
+		--add-module=/usr/src/lua-nginx-module-$LUA_MODULE_VERSION \
 	" \
 	&& addgroup -S nginx \
 	&& adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx \
@@ -76,29 +73,27 @@ RUN GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
 		geoip-dev \
 		perl-dev \
 		luajit-dev \
-	&& export LUAJIT_LIB=/usr/lib \
-	&& export LUAJIT_INC=/usr/include/luajit-2.0 \
-	&& curl -fSL https://github.com/simpl/ngx_devel_kit/archive/v0.3.0.tar.gz -o /tmp/ndk.tar.gz \
-	&& tar -xvf /tmp/ndk.tar.gz -C /tmp \
-	&& curl -fSL https://github.com/openresty/lua-nginx-module/archive/v${LUA_NGINX_MODULE_VERSION}.tar.gz -o /tmp/lua-nginx.tar.gz \
-	&& tar -xvf /tmp/lua-nginx.tar.gz -C /tmp \
 	&& curl -fSL http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
 	&& curl -fSL http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
+	&& curl -fSL https://github.com/simpl/ngx_devel_kit/archive/v$DEVEL_KIT_MODULE_VERSION.tar.gz -o ndk.tar.gz \
+	&& curl -fSL https://github.com/openresty/lua-nginx-module/archive/v$LUA_MODULE_VERSION.tar.gz -o lua.tar.gz \
 	&& export GNUPGHOME="$(mktemp -d)" \
-	&& gpg --keyserver ha.pool.sks-keyservers.net --recv-keys "$GPG_KEYS" \
+	&& gpg --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "$GPG_KEYS" \
 	&& gpg --batch --verify nginx.tar.gz.asc nginx.tar.gz \
 	&& rm -r "$GNUPGHOME" nginx.tar.gz.asc \
 	&& mkdir -p /usr/src \
 	&& tar -zxC /usr/src -f nginx.tar.gz \
-	&& rm nginx.tar.gz \
+	&& tar -zxC /usr/src -f ndk.tar.gz \
+	&& tar -zxC /usr/src -f lua.tar.gz \
+	&& rm nginx.tar.gz ndk.tar.gz lua.tar.gz \
 	&& cd /usr/src/nginx-$NGINX_VERSION \
 	&& ./configure $CONFIG --with-debug \
 	&& make -j$(getconf _NPROCESSORS_ONLN) \
 	&& mv objs/nginx objs/nginx-debug \
 	&& mv objs/ngx_http_xslt_filter_module.so objs/ngx_http_xslt_filter_module-debug.so \
 	&& mv objs/ngx_http_image_filter_module.so objs/ngx_http_image_filter_module-debug.so \
-	&& mv objs/ngx_http_geoip_module.so objs/ngx_http_geoip_module-debug.so \
 	&& mv objs/ngx_http_perl_module.so objs/ngx_http_perl_module-debug.so \
+	&& mv objs/ngx_stream_geoip_module.so objs/ngx_stream_geoip_module-debug.so \
 	&& ./configure $CONFIG \
 	&& make -j$(getconf _NPROCESSORS_ONLN) \
 	&& make install \
@@ -110,16 +105,12 @@ RUN GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
 	&& install -m755 objs/nginx-debug /usr/sbin/nginx-debug \
 	&& install -m755 objs/ngx_http_xslt_filter_module-debug.so /usr/lib/nginx/modules/ngx_http_xslt_filter_module-debug.so \
 	&& install -m755 objs/ngx_http_image_filter_module-debug.so /usr/lib/nginx/modules/ngx_http_image_filter_module-debug.so \
-	&& install -m755 objs/ngx_http_geoip_module-debug.so /usr/lib/nginx/modules/ngx_http_geoip_module-debug.so \
 	&& install -m755 objs/ngx_http_perl_module-debug.so /usr/lib/nginx/modules/ngx_http_perl_module-debug.so \
+	&& install -m755 objs/ngx_stream_geoip_module-debug.so /usr/lib/nginx/modules/ngx_stream_geoip_module-debug.so \
 	&& ln -s ../../usr/lib/nginx/modules /etc/nginx/modules \
 	&& strip /usr/sbin/nginx* \
 	&& strip /usr/lib/nginx/modules/*.so \
 	&& rm -rf /usr/src/nginx-$NGINX_VERSION \
-	&& rm -f /tmp/ndk.tar.gz \
-	&& rm -f /tmp/lua-nginx.tar.gz \
-	&& rm -rf /tmp/ngx_devel_kit-${NGX_DEVEL_KIT_VERSION} \
-	&& rm -rf /tmp/lua-nginx-module-${LUA_NGINX_MODULE_VERSION} \
 	\
 	# Bring in gettext so we can get `envsubst`, then throw
 	# the rest away. To do this, we need to install `gettext`
