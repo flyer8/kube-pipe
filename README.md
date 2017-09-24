@@ -16,3 +16,6 @@ Docker image of Nginx-lua server.
 https://hub.docker.com/r/flyer8/nginx-lua/
 
 Nginx-lua webapp URL: http://35.196.86.69/
+
+![Alt text](helm_status.png)
+![](kubectl_get_all.png)
