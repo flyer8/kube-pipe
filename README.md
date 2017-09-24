@@ -15,4 +15,4 @@ Pipeline Job: http://35.190.51.64/job/pipe-for-kube/
 Docker image of Nginx-lua server.
 https://hub.docker.com/r/flyer8/nginx-lua/
 
-Nginx-lua webapp URL: http://35.190.134.89/
+Nginx-lua webapp URL: http://35.196.86.69/
